@@ -1,22 +1,39 @@
 import streamlit as st
+from streamlit_webrtc import webrtc_streamer, VideoTransformerBase
 import cv2
+import mediapipe as mp
+import av
 
 st.title("Smart Calculator Using Hand Gestures")
 
-run = st.checkbox("Start Camera")
+mp_hands = mp.solutions.hands
+mp_draw = mp.solutions.drawing_utils
 
-FRAME_WINDOW = st.image([])
+hands = mp_hands.Hands(
+    max_num_hands=1,
+    min_detection_confidence=0.7,
+    min_tracking_confidence=0.7
+)
 
-camera = cv2.VideoCapture(0)
+class HandTracker(VideoTransformerBase):
 
-while run:
-    ret, frame = camera.read()
+    def transform(self, frame):
+        img = frame.to_ndarray(format="bgr24")
 
-    if not ret:
-        st.write("Camera stopped")
-        break
+        rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        results = hands.process(rgb)
 
-    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    FRAME_WINDOW.image(frame)
+        if results.multi_hand_landmarks:
+            for hand_landmarks in results.multi_hand_landmarks:
+                mp_draw.draw_landmarks(
+                    img,
+                    hand_landmarks,
+                    mp_hands.HAND_CONNECTIONS
+                )
 
-camera.release()
+        return img
+
+webrtc_streamer(
+    key="hand-tracker",
+    video_transformer_factory=HandTracker
+)
